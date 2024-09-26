@@ -3,111 +3,80 @@ import torch.nn as nn
 import torchaudio
 from torchaudio.datasets import SPEECHCOMMANDS as SpeechCommands
 import numpy as np
+import argparse
+from torchinfo import summary
+from data import get_loaders
+from models import get_model
 
 
-class SimpleConvModel(nn.Module):
-    def __init__(self):
-        super(SimpleConvModel, self).__init__()
-        
-        self.conv1 = nn.Sequential(
-            nn.Conv2d( # 1 x 20 x 32
-                in_channels=1,
-                out_channels=16,
-                kernel_size=3,
-                stride=1,
-                padding=0
-            ),
-            nn.ReLU(), # 16 x 18 x 30
-        )
+def get_parser():
+    parser = argparse.ArgumentParser(
+                    prog='speech_commands_pytorch',
+                    description='Trains a model on the speech comands dataset.')
+    parser.add_argument('-n', '--num-epochs', type=int, help='Number of epochs to train the model', default=10)
+    parser.add_argument('-b', '--batch-size', type=int, help='Batch size', default=128)
+    parser.add_argument('-w', '--num-workers', type=int, help='Number of workers for preprocessing.', default=4)
+    parser.add_argument('-p', '--pin-memory', action='store_true', default=False)
+    return parser
 
-        self.conv2 = nn.Sequential(
-            nn.Conv2d(
-                in_channels=16,
-                out_channels=32,
-                kernel_size=3,
-                stride=1,
-                padding=0
-            ),
-            nn.ReLU(),  # 32 x 16 x 28
-        )
-        self.maxpool = nn.MaxPool2d(2)
-        self.linear = nn.Linear(32*8*14, 12)
+def evaluate(model, loader, transform, loss_fn):
+    model.eval()
+    size = len(loader.dataset)
+    num_batches = len(loader)
+    test_loss, correct = 0, 0
 
-    def forward(self, x):
-        x = self.conv1(x)
-        x = self.conv2(x)
-        x = self.maxpool(x)
-
-        # flatten the output for linear layer
-        x = x.view(x.size(0), -1)
-        out =  self.linear(x)
-        return out
+    with torch.no_grad():
+        for waveforms, predictions in loader:
+            mel_spectrograms = transform(waveforms)
+            outputs = model(mel_spectrograms)
+            test_loss += loss_fn(outputs, predictions).item()
+            correct += (outputs.argmax(1) == predictions).type(torch.float).sum().item()
+    test_loss /= num_batches
+    correct /= size
+    print(f"Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
 
 
-def collate_fn(batch):
-    COMMANDS = ["yes", "no", "up", "down", "left", "right", "on", "off", "stop", "go"]
-    waveforms = []
-    labels = []
+def train_loop(model, train_loader, transform, optimizer, loss_fn):
+    model.train()
+    for i, (waveforms, predictions) in enumerate(train_loader):
+        # zero gradients from previous loop
+        optimizer.zero_grad()
+    
+        # we trasfrom the waveforms into spectorgrams and feed them into the model
+        mel_spectrograms = transform(waveforms)
+        outputs = model(mel_spectrograms)
+        loss = loss_fn(outputs, predictions)
+    
+        # calculate losses and step the optimizer
+        loss.backward()
+        optimizer.step()
+        if (i+1) % 100 == 0:
+            print(f"Iteration: [{i+1}/{len(train_loader)}]; Loss: {loss:.4f}") 
+ 
 
-    for elem in batch:
-        waveform = elem[0]
-        waveform_pad = torch.nn.functional.pad(waveform, (0, 16000 - waveform.shape[-1]))
-        waveforms.append(waveform_pad)
-        if elem[2] in COMMANDS:
-            labels.append(COMMANDS.index(elem[2]))
-        else:
-            labels.append(10)
-    return torch.from_numpy(np.array(waveforms)), torch.Tensor(labels).to(torch.long)
-
-def train():
-    NUM_WORKERS = 4
-    PIN_MEMORY = False
-    BATCH_SIZE = 128
-    NUM_EPOCHS = 1
-
-    train_ds = SpeechCommands(root="./data/", download=True, subset="training")
-    val_ds = SpeechCommands(root="./data/", download=True, subset="validation")
-    test_ds = SpeechCommands(root="./data/", download=True, subset="testing")
-
-    train_loader = torch.utils.data.DataLoader(
-        train_ds,
-        batch_size=BATCH_SIZE,
-        shuffle=True,
-        collate_fn=collate_fn,
-        num_workers=NUM_WORKERS,
-        pin_memory=PIN_MEMORY,
-    )
-
+def train(args):
+    train_loader, val_loader, test_loader = get_loaders(args.batch_size, args.num_workers, args.pin_memory)
     transform = torchaudio.transforms.MelSpectrogram(
         n_fft=512,
         hop_length=512,
         n_mels=20
     )
 
-    model = SimpleConvModel()
+    model = get_model()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     loss_fn = torch.nn.CrossEntropyLoss()
-   
+
+    print(summary(model, (1, *(1, 20, 32))))
     model.train()
-    for epoch in range(NUM_EPOCHS):
-        for i, data in enumerate(train_loader):
-            # get data
-            waveforms, predictions = data
+    for epoch in range(args.num_epochs):
+        print(f"EPOCH: [{epoch+1}/{args.num_epochs}]") 
+        train_loop(model, train_loader, transform, optimizer, loss_fn)
+        print("Val error:")
+        evaluate(model, val_loader, transform, loss_fn)
 
-            # zero gradients from previous loop
-            optimizer.zero_grad()
-
-            # we trasfrom the waveforms into spectorgrams and feed them into the model
-            mel_spectrograms = transform(waveforms)
-            outputs = model(mel_spectrograms)
-            loss = loss_fn(outputs, predictions)
-
-            # calculate losses and step the optimizer
-            loss.backward()
-            optimizer.step()
-            if (i+1) % 100 == 0:
-                print(f"Epoch: [{epoch}/{NUM_EPOCHS}]; Iteration: [{i+1}/{len(train_loader)}]; Loss: {loss:.4f}")
-
-
+    print("Test error:")
+    evaluate(model, test_loader, transform, loss_fn)
 if __name__ == "__main__":
-    train()
+    args = get_parser().parse_args()
+    print(args)
+    train(args)
