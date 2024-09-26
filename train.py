@@ -13,10 +13,11 @@ def get_parser():
     parser = argparse.ArgumentParser(
                     prog='speech_commands_pytorch',
                     description='Trains a model on the speech comands dataset.')
-    parser.add_argument('-n', '--num-epochs', type=int, help='Number of epochs to train the model', default=10)
-    parser.add_argument('-b', '--batch-size', type=int, help='Batch size', default=128)
-    parser.add_argument('-w', '--num-workers', type=int, help='Number of workers for preprocessing.', default=4)
+    parser.add_argument('-n', '--num-epochs', type=int, help='Number of epochs to train the model', default=20)
+    parser.add_argument('-b', '--batch-size', type=int, help='Batch size', default=256)
+    parser.add_argument('-w', '--num-workers', type=int, help='Number of workers for preprocessing.', default=8)
     parser.add_argument('-p', '--pin-memory', action='store_true', default=False)
+    parser.add_argument('-lr', '--learning-rate', type=float, help='Learning rate for training.', default=0.0001)
     return parser
 
 def evaluate(model, loader, transform, loss_fn, device):
@@ -57,7 +58,6 @@ def train_loop(model, train_loader, transform, optimizer, loss_fn, device):
 def train(args):
     train_loader, val_loader, test_loader = get_loaders(args.batch_size, args.num_workers, args.pin_memory)
 
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"TRAINING ON: {device}.")
     
@@ -68,7 +68,7 @@ def train(args):
     ).to(device)
 
     model = get_model().to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
     loss_fn = torch.nn.CrossEntropyLoss()
 
     print(summary(model, (1, *(1, 20, 32))))
