@@ -19,7 +19,7 @@ def get_parser():
     parser.add_argument('-p', '--pin-memory', action='store_true', default=False)
     return parser
 
-def evaluate(model, loader, transform, loss_fn):
+def evaluate(model, loader, transform, loss_fn, device):
     model.eval()
     size = len(loader.dataset)
     num_batches = len(loader)
@@ -27,25 +27,25 @@ def evaluate(model, loader, transform, loss_fn):
 
     with torch.no_grad():
         for waveforms, predictions in loader:
-            mel_spectrograms = transform(waveforms)
+            mel_spectrograms = transform(waveforms.to(device))
             outputs = model(mel_spectrograms)
-            test_loss += loss_fn(outputs, predictions).item()
-            correct += (outputs.argmax(1) == predictions).type(torch.float).sum().item()
+            test_loss += loss_fn(outputs, predictions.to(device)).item()
+            correct += (outputs.argmax(1) == predictions.to(device)).type(torch.float).sum().item()
     test_loss /= num_batches
     correct /= size
     print(f"Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
 
 
-def train_loop(model, train_loader, transform, optimizer, loss_fn):
+def train_loop(model, train_loader, transform, optimizer, loss_fn, device):
     model.train()
     for i, (waveforms, predictions) in enumerate(train_loader):
         # zero gradients from previous loop
         optimizer.zero_grad()
     
         # we trasfrom the waveforms into spectorgrams and feed them into the model
-        mel_spectrograms = transform(waveforms)
+        mel_spectrograms = transform(waveforms.to(device))
         outputs = model(mel_spectrograms)
-        loss = loss_fn(outputs, predictions)
+        loss = loss_fn(outputs, predictions.to(device))
     
         # calculate losses and step the optimizer
         loss.backward()
@@ -56,13 +56,18 @@ def train_loop(model, train_loader, transform, optimizer, loss_fn):
 
 def train(args):
     train_loader, val_loader, test_loader = get_loaders(args.batch_size, args.num_workers, args.pin_memory)
+
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"TRAINING ON: {device}.")
+    
     transform = torchaudio.transforms.MelSpectrogram(
         n_fft=512,
         hop_length=512,
         n_mels=20
-    )
+    ).to(device)
 
-    model = get_model()
+    model = get_model().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     loss_fn = torch.nn.CrossEntropyLoss()
 
@@ -70,12 +75,12 @@ def train(args):
     model.train()
     for epoch in range(args.num_epochs):
         print(f"EPOCH: [{epoch+1}/{args.num_epochs}]") 
-        train_loop(model, train_loader, transform, optimizer, loss_fn)
+        train_loop(model, train_loader, transform, optimizer, loss_fn, device)
         print("Val error:")
-        evaluate(model, val_loader, transform, loss_fn)
+        evaluate(model, val_loader, transform, loss_fn, device)
 
     print("Test error:")
-    evaluate(model, test_loader, transform, loss_fn)
+    evaluate(model, test_loader, transform, loss_fn, device)
 if __name__ == "__main__":
     args = get_parser().parse_args()
     print(args)

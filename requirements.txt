@@ -1,4 +1,4 @@
-torch
-torchaudio
-numpy
+torch==2.0.0
+torchaudio==2.0.0
+numpy==1.26.4
 torchinfo

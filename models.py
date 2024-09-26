@@ -28,7 +28,7 @@ def get_model():
                     padding=0,
                     groups=1,
                 ),
-                nn.BatchNorm2d(),
+                #nn.BatchNorm2d(),
                 nn.ReLU(), # 16 x 18 x 30
             )
     
@@ -41,7 +41,7 @@ def get_model():
                     padding=0,
                     groups=16
                 ),
-                nn.BatchNorm2d(),
+                #nn.BatchNorm2d(),
                 nn.ReLU(),  # 32 x 16 x 28
                 nn.Conv2d(
                     in_channels=32,
@@ -51,7 +51,7 @@ def get_model():
                     padding=0,
                     groups=1
                 ),
-                nn.BatchNorm2d(),
+                #nn.BatchNorm2d(),
                 nn.ReLU(),  # 8 x 16 x 28
             )
             self.maxpool = nn.MaxPool2d(2)
