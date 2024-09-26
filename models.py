@@ -8,7 +8,7 @@ def make_ds_block(ch_in, ch_mid, ch_out):
 			kernel_size=3,
 		 	stride=1,
 			padding=0,
-			groups=ch_out
+			groups=ch_in
 		),
         nn.BatchNorm2d(ch_mid),
         nn.ReLU(),
@@ -46,8 +46,8 @@ def get_model():
             super(ConvModel, self).__init__()
             # in 1 x 20 x 32
             self.conv1 = make_base_conv(1, 16) # 16 x 18 x 30
-            self.ds_conv1 = make_ds_block(16, 32, 16)  # 16 x 16 x 28
-            self.ds_conv2 = make_ds_block(16, 64, 8)   # 8 x 14 x 26
+            self.ds_conv1 = make_ds_block(16, 32, 32)  # 16 x 16 x 28
+            self.ds_conv2 = make_ds_block(32, 64, 8)   # 8 x 14 x 26
             self.maxpool = nn.MaxPool2d(2)  # 8 x 7 x 13
             self.linear = nn.Linear(8*7*13, 12)
     
