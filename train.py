@@ -15,6 +15,7 @@ def get_parser():
                     prog='speech_commands_pytorch',
                     description='Trains a model on the speech comands dataset.')
     parser.add_argument('-n', '--num-epochs', type=int, help='Number of epochs to train the model', default=20)
+    parser.add_argument('-w', '--num-workers', type=int, help='Number of workers for dataloading', default=4)
     parser.add_argument('-b', '--batch-size', type=int, help='Batch size', default=256)
     parser.add_argument('-lr', '--learning-rate', type=float, help='Learning rate for training.', default=0.0001)
     parser.add_argument('-fft', '--num-fft', type=float, help='FFT size.', default=512)
@@ -29,7 +30,7 @@ def pprint_class_acc(x):
     txt += '-----------------\n'
     print(txt)
 
-def evaluate(model, dataset, transform, loss_fn, device, name=''):
+def evaluate(model, dataloader, transform, loss_fn, device, name=''):
     model.eval()
     size = 0
     num_batches = 0
@@ -37,11 +38,9 @@ def evaluate(model, dataset, transform, loss_fn, device, name=''):
     metric = MulticlassAccuracy(average=None, num_classes=12)
 
     with torch.no_grad():
-        for batch in dataset:
-            waveforms = torch.from_numpy(np.expand_dims(batch['audio'].numpy().astype(np.float32), axis=1)).to(device)
-            labels = torch.from_numpy(batch['label'].numpy()).to(device)
+        for waveforms, labels in dataloader:
             num_batches += 1
-            size += labels.shape[0]
+            size += len(labels)
             mel_spectrograms = transform(waveforms.to(device))
             outputs = model(mel_spectrograms)
             test_loss += loss_fn(outputs, labels.to(device)).item()
@@ -70,29 +69,27 @@ def evaluate(model, dataset, transform, loss_fn, device, name=''):
         f'{name}_acc_other '     : res[11],
     })
 
-def train_loop(model, train_ds, transform, optimizer, loss_fn, device):
+def train_loop(model, train_dl, transform, optimizer, loss_fn, device):
     model.train()
-    for i, batch in enumerate(train_ds):
-        waveforms = torch.from_numpy(np.expand_dims(batch['audio'].numpy().astype(np.float32), axis=1)).to(device)
-        labels = torch.from_numpy(batch['label'].numpy()).to(device)
+    for i, (waveforms, labels) in enumerate(train_dl):
         # zero gradients from previous loop
         optimizer.zero_grad()
     
         # we trasfrom the waveforms into spectorgrams and feed them into the model
-        mel_spectrograms = transform(waveforms)
+        mel_spectrograms = transform(waveforms.to(device))
         outputs = model(mel_spectrograms)
-        loss = loss_fn(outputs, labels)
+        loss = loss_fn(outputs, labels.to(device))
     
         # calculate losses and step the optimizer
         loss.backward()
         optimizer.step()
         if (i+1) % 100 == 0:
-            print(f"Iteration: [{i+1}/{len(train_ds)}]; Loss: {loss:.4f}")
+            print(f"Iteration: [{i+1}/{len(train_dl)}]; Loss: {loss:.4f}")
             wandb.log({'train_loss' : loss}) 
  
 
 def train(args):
-    train_ds, val_ds, test_ds = get_loaders(args.batch_size)
+    train_dl, val_dl, test_dl = get_loaders(args.batch_size, args.num_workers)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"TRAINING ON: {device}.")
@@ -113,12 +110,12 @@ def train(args):
     model.train()
     for epoch in range(args.num_epochs):
         print(f"EPOCH: [{epoch+1}/{args.num_epochs}]") 
-        train_loop(model, train_ds, transform, optimizer, loss_fn, device)
+        train_loop(model, train_dl, transform, optimizer, loss_fn, device)
         print("Val error:")
-        evaluate(model, val_ds, transform, loss_fn, device, 'validation')
+        evaluate(model, val_dl, transform, loss_fn, device, 'validation')
 
     print("Test error:")
-    evaluate(model, test_ds, transform, loss_fn, device, 'test')
+    evaluate(model, test_dl, transform, loss_fn, device, 'test')
 
 
 if __name__ == "__main__":
