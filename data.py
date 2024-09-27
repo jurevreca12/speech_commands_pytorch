@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from torchaudio.datasets import SPEECHCOMMANDS as SpeechCommands
+import tensorflow_datasets as tfds
 
 def collate_fn(batch):
     COMMANDS = ["yes", "no", "up", "down", "left", "right", "on", "off", "stop", "go"]
@@ -17,33 +17,41 @@ def collate_fn(batch):
             labels.append(10)
     return torch.from_numpy(np.array(waveforms)), torch.Tensor(labels).to(torch.long)
 
-def get_loaders(batch_size, num_workers, pin_memory):
-	train_ds = SpeechCommands(root="./data/", download=True, subset="training")
-	val_ds = SpeechCommands(root="./data/", download=True, subset="validation")
-	test_ds = SpeechCommands(root="./data/", download=True, subset="testing")
-	
-	train_loader = torch.utils.data.DataLoader(
-	    train_ds,
+def get_loaders(batch_size):
+	train_ds, info = tfds.load(
+	    'speech_commands', 
+	    split='train',
 	    batch_size=batch_size,
-	    shuffle=True,
-	    collate_fn=collate_fn,
-	    num_workers=num_workers,
-	    pin_memory=pin_memory,
-	)
-	val_loader = torch.utils.data.DataLoader(
-	    val_ds,
+	    shuffle_files=True,
+	    with_info=True
+	)	
+	val_ds = tfds.load(
+	    'speech_commands', 
+	    split='validation',
 	    batch_size=batch_size,
-	    shuffle=False,
-	    collate_fn=collate_fn,
-	    num_workers=num_workers,
-	    pin_memory=pin_memory,
 	)
-	test_loader = torch.utils.data.DataLoader(
-	    test_ds,
+	test_ds = tfds.load(
+	    'speech_commands', 
+	    split='test',
 	    batch_size=batch_size,
-	    shuffle=False,
-	    collate_fn=collate_fn,
-	    num_workers=num_workers,
-	    pin_memory=pin_memory,
 	)
-	return (train_loader, val_loader, test_loader)
+
+	return (train_ds, val_ds, test_ds)
+
+
+def data_classes():
+    x = {
+      0: "down",
+      1: "go",
+      2: "left",
+      3: "no",
+      4: "off",
+      5: "on",
+      6: "right",
+      7: "stop",
+      8: "up",
+      9: "yes",
+      10: "background",
+      11: "other"
+    }
+    return x

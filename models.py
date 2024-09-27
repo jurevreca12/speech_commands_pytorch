@@ -45,16 +45,18 @@ def get_model():
         def __init__(self):
             super(ConvModel, self).__init__()
             # in 1 x 20 x 32
-            self.conv1 = make_base_conv(1, 16) # 16 x 18 x 30
-            self.ds_conv1 = make_ds_block(16, 32, 32)  # 16 x 16 x 28
-            self.ds_conv2 = make_ds_block(32, 64, 8)   # 8 x 14 x 26
+            self.conv1 = make_base_conv(1, 32) # 32 x 18 x 30
+            self.ds_conv1 = make_ds_block(32, 64, 64)  # 64 x 16 x 28
+            self.ds_conv2 = make_ds_block(64, 128, 128)   # 128 x 14 x 26
+            self.ds_conv3 = make_ds_block(128, 256, 256)   # 256 x 12 x 24
             self.maxpool = nn.MaxPool2d(2)  # 8 x 7 x 13
-            self.linear = nn.Linear(8*7*13, 11)
+            self.linear = nn.Linear(256*6*12, 12)
     
         def forward(self, x):
             x = self.conv1(x)
             x = self.ds_conv1(x)
             x = self.ds_conv2(x)
+            x = self.ds_conv3(x)
             x = self.maxpool(x)
     
             # flatten the output for linear layer
