@@ -49,7 +49,7 @@ def get_model():
             self.ds_conv1 = make_ds_block(16, 32, 32)  # 16 x 16 x 28
             self.ds_conv2 = make_ds_block(32, 64, 8)   # 8 x 14 x 26
             self.maxpool = nn.MaxPool2d(2)  # 8 x 7 x 13
-            self.linear = nn.Linear(8*7*13, 12)
+            self.linear = nn.Linear(8*7*13, 11)
     
         def forward(self, x):
             x = self.conv1(x)
