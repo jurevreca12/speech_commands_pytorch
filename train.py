@@ -17,6 +17,8 @@ def get_parser():
     parser.add_argument('-n', '--num-epochs', type=int, help='Number of epochs to train the model', default=20)
     parser.add_argument('-b', '--batch-size', type=int, help='Batch size', default=256)
     parser.add_argument('-lr', '--learning-rate', type=float, help='Learning rate for training.', default=0.0001)
+    parser.add_argument('-fft', '--num-fft', type=float, help='FFT size.', default=512)
+    parser.add_argument('-m', '--num-mels', type=float, help='Number of mels.', default=20)
     return parser
 
 def pprint_class_acc(x):
@@ -96,16 +98,18 @@ def train(args):
     print(f"TRAINING ON: {device}.")
     
     transform = torchaudio.transforms.MelSpectrogram(
-        n_fft=512,
-        hop_length=512,
-        n_mels=20
+        n_fft=args.num_fft,
+        hop_length=args.num_fft,
+        n_mels=args.num_mels
     ).to(device)
 
     model = get_model().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
-    loss_fn = torch.nn.CrossEntropyLoss(weight=torch.Tensor([1] * 11 + [0.5]).to(device))   # The  last class "other" is most common
+    loss_fn = torch.nn.CrossEntropyLoss(weight=torch.Tensor([1] * 11 + [0.1]).to(device))   # The  last class "other" is most common
 
-    print(summary(model, (1, *(1, 20, 32))))
+    with torch.no_grad():
+        input_shape = (args.batch_size,) + transform(torch.randn(1, 16000, device=device)).shape
+    print(summary(model, input_shape))
     model.train()
     for epoch in range(args.num_epochs):
         print(f"EPOCH: [{epoch+1}/{args.num_epochs}]") 
@@ -120,18 +124,14 @@ def train(args):
 if __name__ == "__main__":
     args = get_parser().parse_args()
     print(args)
-    
     wandb.init(
         project="speech_commands_pytorch",
 
         # track hyperparameters and run metadata
         config={
-            "num_epochs": args.num_epochs,
-            "batch_size": args.batch_size,
-            "learning_rate": args.learning_rate,
             "architecture": "DS-CNN",
             "dataset": "SpeechCommands",
-
+            **vars(args)
         }
     )
 

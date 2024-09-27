@@ -25,12 +25,12 @@ def make_ds_block(ch_in, ch_mid, ch_out):
 	)
 	return m
 
-def make_base_conv(ch_in, ch_out):
+def make_base_conv(ch_in, ch_out, kernel_size):
     m = nn.Sequential(
         nn.Conv2d(
             in_channels=ch_in,
             out_channels=ch_out,
-            kernel_size = 3,
+            kernel_size = kernel_size,
             stride = 1,
             padding = 0,
             groups = 1,
@@ -45,12 +45,12 @@ def get_model():
         def __init__(self):
             super(ConvModel, self).__init__()
             # in 1 x 20 x 32
-            self.conv1 = make_base_conv(1, 32) # 32 x 18 x 30
-            self.ds_conv1 = make_ds_block(32, 64, 64)  # 64 x 16 x 28
-            self.ds_conv2 = make_ds_block(64, 128, 128)   # 128 x 14 x 26
-            self.ds_conv3 = make_ds_block(128, 256, 256)   # 256 x 12 x 24
-            self.maxpool = nn.MaxPool2d(2)  # 8 x 7 x 13
-            self.linear = nn.Linear(256*6*12, 12)
+            self.conv1 = make_base_conv(1, 172, 3) # 172 x 18 x 30
+            self.ds_conv1 = make_ds_block(172, 172, 172)  # 172 x 16 x 28
+            self.ds_conv2 = make_ds_block(172, 172, 172)   # 172 x 14 x 26
+            self.ds_conv3 = make_ds_block(172, 172, 172)   # 172 x 12 x 24
+            self.maxpool = nn.MaxPool2d(2)  
+            self.linear = nn.Linear(172*6*12, 12)
     
         def forward(self, x):
             x = self.conv1(x)
